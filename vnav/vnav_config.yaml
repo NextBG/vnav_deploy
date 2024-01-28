@@ -1,0 +1,9 @@
+# Model
+context_size: 3         # Number of past observations to consider
+encoding_dim: 256       # Dimension of the latent space
+pred_horizon: 8         # Number of timesteps to predict noise for
+
+# Inference
+num_samples: 10         # Number of samples to draw from noise predictor
+action_max_x: 0.7       # Maximum x action for normalization
+action_max_abs_y: 0.7   # Maximum y action for normalization
