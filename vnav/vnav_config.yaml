@@ -1,0 +1,14 @@
+# Model
+context_size: 3         # Number of past observations to consider
+encoding_dim: 256       # Dimension of the latent space
+pred_horizon: 8         # Number of timesteps to predict noise for
+
+# Inference
+num_samples: 1          # Number of samples to draw from noise predictor
+action_max_x: 1.2       # Maximum x action for normalization
+action_max_abs_y: 1.2   # Maximum y action for normalization
+goal_norm_factor: 0.1   # n_goal_vec = tanh(goal_vec*goal_norm_factor)
+
+# Temporal assembly
+action_queue_size: 1
+action_weights: [0.3, 0.25, 0.2, 0.15, 0.1]
