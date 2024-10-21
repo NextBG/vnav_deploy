@@ -25,7 +25,7 @@ tmux send-keys "python rover_controller_rconly.py" Enter
 
 # [2] Data collector
 tmux select-pane -t 2
-tmux send-keys "python data_collector.py --interval 1" Enter
+tmux send-keys "python data_collector.py --interval 0.5 --n_points 1000" Enter
 
 # [1]
 tmux select-pane -t 3
