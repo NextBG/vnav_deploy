@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 from PIL import Image as PILImage
 import argparse
+import matplotlib.pyplot as plt
 
 class DataCollector:
     def __init__(self, interval):
@@ -15,7 +16,8 @@ class DataCollector:
 
         # Params
         self.interval = interval
-        self.seq = 0  # For image sequence numbering
+        self.seq_idx = 0
+        self.data_idx = 0  # For image sequence numbering
         self.traj_data = {"positions": [], "yaws": [], "raw": []}
         self.obs_curr = None
 
@@ -28,7 +30,7 @@ class DataCollector:
         os.makedirs(self.dataset_dir, exist_ok=True)
 
         # Subfolder for current dataset
-        self.current_data_dir = os.path.join(self.dataset_dir, f"{self.seq:06d}")
+        self.current_data_dir = os.path.join(self.dataset_dir, f"{self.seq_idx:06d}")
         os.makedirs(self.current_data_dir, exist_ok=True)
 
         print("Data collector node initialized.")
@@ -42,18 +44,8 @@ class DataCollector:
 
     def _odom_callback(self, odom: Odometry):
         # Extract 2D position (x, y) and yaw from odometry
-        pos = odom.pose.pose.position
-        ori = odom.pose.pose.orientation
-
-        # Convert quaternion to yaw
-        yaw = self.quaternion_to_yaw(ori)
-
-        # Store the 2D position and yaw
-        self.traj_data["positions"].append([pos.x, pos.y])
-        self.traj_data["yaws"].append(yaw)
-        
-        # Store raw pose (position + orientation as quaternion)
-        self.traj_data["raw"].append([pos.x, pos.y, pos.z, ori.w, ori.x, ori.y, ori.z])
+        self.pos = odom.pose.pose.position
+        self.ori = odom.pose.pose.orientation
 
     def quaternion_to_yaw(self, orientation):
         """Convert quaternion to yaw."""
@@ -64,29 +56,74 @@ class DataCollector:
         return yaw
 
     def save_data(self):
-        # Save the current image
-        if self.obs_curr:
-            img_path = os.path.join(self.current_data_dir, f"{self.seq:6d}.jpg")
+        # Save the image and odometry data
+        if self.obs_curr and self.pos and self.ori:
+            # Image
+            img_path = os.path.join(self.current_data_dir, f"{self.data_idx:6d}.jpg")
             self.obs_curr.save(img_path)
 
+            # Odometry
+            yaw = self.quaternion_to_yaw(self.ori) * 180 / np.pi
+            self.traj_data["positions"].append([self.pos.x, self.pos.y])
+            self.traj_data["yaws"].append(yaw)
+            self.traj_data["raw"].append([self.pos.x, self.pos.y, self.pos.z, self.ori.w, self.ori.x, self.ori.y, self.ori.z])
+
+            print(f"Point {self.data_idx:03d} saved: {self.pos.x:.2f}, {self.pos.y:.2f}, Yaw: {yaw:.2f}", end="\r")
+
+            self.data_idx += 1
+            
         # Save the trajectory data after 1000 images
-        if self.seq >= 1000:
+        if self.data_idx >= 1000:
             pkl_path = os.path.join(self.current_data_dir, 'traj_data.pkl')
             with open(pkl_path, 'wb') as f:
                 pickle.dump(self.traj_data, f)
+            self.plot_data()
+            print(f"Trajectory data saved to {pkl_path}")
             
             # Start new dataset after saving the first one
-            self.seq = 0
+            self.data_idx = 0
             self.traj_data = {"positions": [], "yaws": [], "raw": []}
-            self.current_data_dir = os.path.join(self.dataset_dir, f"{self.seq:06d}")
+            self.current_data_dir = os.path.join(self.dataset_dir, f"{self.seq_idx:06d}")
             os.makedirs(self.current_data_dir, exist_ok=True)
+            self.seq_idx += 1
+
+    def plot_data(self):
+        # Plot the trajectory and save the image
+        fig, ax = plt.subplots()
+        ax.set_title("Trajectory")
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlabel('y')
+        ax.set_ylabel('x')
+        ax.invert_xaxis()
+        ax.grid()
+
+        # Plot the trajectory
+        ax.plot(self.traj_data['positions'][:,1], self.traj_data['positions'][:,0], color='r', linewidth=0.1)
+        # Plot every 100th point
+        ax.plot(self.traj_data['positions'][:,1][::100], self.traj_data['positions'][:,0][::100], 'o', color='b', markersize=0.1)
+        # Plot the direction vector
+        vis_stride = 10
+        ax.quiver(
+            self.traj_data['positions'][:,1][::vis_stride], 
+            self.traj_data['positions'][:,0][::vis_stride], 
+            -np.sin(self.traj_data['yaws'][::vis_stride]),
+            np.cos(self.traj_data['yaws'][::vis_stride]),
+            color='g', 
+            width=0.001)
+
+        # legend
+        ax.legend([f'every {vis_stride} points', 'every 100 points', 'direction vector', 'yaw angle'], loc='lower right', fontsize='xx-small')
+
+        fig.savefig(os.path.join(self.current_data_dir, 'visualization.png'))
+
+        # Close the figure
+        plt.close(fig)
 
     def run(self):
         rate = rospy.Rate(1.0 / self.interval)  # Collect data at specified interval
         while not rospy.is_shutdown():
             # Do the data collection
             self.save_data()
-            self.seq += 1
 
             # Sleep according to the rate
             rate.sleep()

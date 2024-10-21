@@ -15,4 +15,13 @@
         <rosparam file="config/camera.yaml" command="load" />
     </node>
 
+    <!-- Realsense T265 - only position (x, y) from /camera/odom/sample -->
+    <include file="$(find realsense2_camera)/launch/rs_t265.launch">
+        <arg name="enable_pose" value="true"/>
+        <arg name="enable_fisheye1" value="false"/>
+        <arg name="enable_fisheye2" value="false"/>
+        <arg name="publish_odom_tf" value="false"/>
+    </include>
+
+
 </launch>
